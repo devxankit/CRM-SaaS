@@ -93,7 +93,9 @@ const allowedOrigins = [
   'http://localhost:3000',  // React default port
   'https://supercrm.appzeto.com',  // Production frontend
   'https://www.supercrm.appzeto.com',  // Production frontend with www
-  'https://api.supercrm.appzeto.com'  // API domain (for cross-origin requests)
+  'https://api.supercrm.appzeto.com',
+  ' https://crm-saa-s.vercel.app',  // API domain (for cross-origin requests)
+  ' https://crm-saa-s.vercel.app/master-admin'  // API domain (for cross-origin requests)
 ];
 
 // ROOT CAUSE FIX: Custom CORS middleware that runs BEFORE everything else
