@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -23,8 +23,9 @@ import {
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Input } from '../../../components/ui/input'
-import MA_dashboard_navbar from '../MA-components/MA_dashboard_navbar'
-import MA_dashboard_sidebar from '../MA-components/MA_dashboard_sidebar'
+import { masterAdminCompanyService } from '../MA-services'
+import { useToast } from '../../../contexts/ToastContext'
+import { RefreshCw } from 'lucide-react'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -37,17 +38,74 @@ const fadeUp = {
 
 const MA_companies = () => {
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [companies, setCompanies] = useState([])
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    totalUsers: 0,
+    totalRevenue: 0
+  })
 
-  // Mock data - Replace with API calls
-  const [companies] = useState([
-    { id: 1, name: 'TechCorp Inc.', email: 'admin@techcorp.com', phone: '+91 9876543210', users: 20, plan: 'Professional', status: 'active', revenue: 35988, growth: 12.5, joinedDate: '2023-08-15' },
-    { id: 2, name: 'Enterprise Ltd.', email: 'info@enterprise.com', phone: '+91 9876543211', users: 50, plan: 'Premium', status: 'active', revenue: 249950, growth: 8.3, joinedDate: '2023-06-01' },
-    { id: 3, name: 'StartupXYZ', email: 'contact@startupxyz.com', phone: '+91 9876543212', users: 5, plan: 'Starter', status: 'active', revenue: 9995, growth: 15.2, joinedDate: '2023-12-01' },
-    { id: 4, name: 'Digital Solutions', email: 'support@digitalsolutions.com', phone: '+91 9876543213', users: 15, plan: 'Professional', status: 'active', revenue: 19992, growth: -2.1, joinedDate: '2023-09-15' },
-    { id: 5, name: 'CloudTech', email: 'admin@cloudtech.com', phone: '+91 9876543214', users: 30, plan: 'Premium', status: 'suspended', revenue: 0, growth: 0, joinedDate: '2023-05-10' },
-    { id: 6, name: 'SmallBiz Co.', email: 'hello@smallbiz.com', phone: '+91 9876543215', users: 3, plan: 'Starter', status: 'trial', revenue: 0, growth: 0, joinedDate: '2024-01-20' }
-  ])
+  // Load companies data
+  const loadCompanies = async () => {
+    setLoading(true)
+    try {
+      const [companiesRes, statsRes] = await Promise.all([
+        masterAdminCompanyService.getAllCompanies({ search: searchQuery }),
+        masterAdminCompanyService.getCompanyStatistics()
+      ])
+
+      if (companiesRes.success && companiesRes.data.companies) {
+        const formattedCompanies = companiesRes.data.companies.map(company => ({
+          id: company._id,
+          name: company.name,
+          email: company.email,
+          phone: company.phone,
+          users: company.totalUsers || 0,
+          plan: company.plan || 'Starter',
+          status: company.status || 'trial',
+          revenue: company.totalRevenue || 0,
+          growth: 0, // Calculate if needed
+          joinedDate: new Date(company.joinedDate).toLocaleDateString()
+        }))
+        setCompanies(formattedCompanies)
+      }
+
+      if (statsRes.success && statsRes.data) {
+        setStats({
+          total: statsRes.data.total || 0,
+          active: statsRes.data.active || 0,
+          totalUsers: statsRes.data.totalUsers || 0,
+          totalRevenue: statsRes.data.totalRevenue || 0
+        })
+      }
+    } catch (error) {
+      console.error('Error loading companies:', error)
+      toast.error('Failed to load companies', {
+        title: 'Error',
+        duration: 4000
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCompanies()
+  }, [])
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== undefined) {
+        loadCompanies()
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -75,20 +133,8 @@ const MA_companies = () => {
     company.email.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const stats = {
-    total: companies.length,
-    active: companies.filter(c => c.status === 'active').length,
-    totalUsers: companies.reduce((sum, c) => sum + c.users, 0),
-    totalRevenue: companies.filter(c => c.status === 'active').reduce((sum, c) => sum + c.revenue, 0)
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-white font-sans">
-      <MA_dashboard_navbar />
-      <MA_dashboard_sidebar />
-
-      <main className="ml-64 pt-16 min-h-screen transition-all duration-300">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <motion.div
             initial="hidden"
@@ -104,12 +150,22 @@ const MA_companies = () => {
                   Manage all companies and their subscriptions
                 </p>
               </div>
-              <Button
-                onClick={() => navigate('/master-admin-companies/new')}
-                className="bg-teal-500 text-white hover:bg-teal-600">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Company
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={loadCompanies}
+                  disabled={loading}
+                  className="border-teal-200 bg-white text-teal-600 hover:bg-teal-50">
+                  <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  onClick={() => navigate('/master-admin-companies/new')}
+                  className="bg-teal-500 text-white hover:bg-teal-600">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Company
+                </Button>
+              </div>
             </div>
           </motion.div>
 
@@ -170,8 +226,24 @@ const MA_companies = () => {
           </motion.div>
 
           {/* Companies Grid */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredCompanies.map((company, index) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center gap-3">
+                <RefreshCw className="h-6 w-6 animate-spin text-teal-600" />
+                <span className="text-lg font-medium text-slate-700">Loading companies...</span>
+              </div>
+            </div>
+          ) : filteredCompanies.length === 0 ? (
+            <Card className="border-teal-100 bg-white shadow-sm">
+              <CardContent className="p-12 text-center">
+                <Building2 className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                <p className="text-lg font-medium text-slate-700">No companies found</p>
+                <p className="text-sm text-slate-500 mt-2">Try adjusting your search or add a new company</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {filteredCompanies.map((company, index) => (
               <motion.div
                 key={company.id}
                 initial="hidden"
@@ -249,11 +321,10 @@ const MA_companies = () => {
                   </CardContent>
                 </Card>
               </motion.div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
-      </main>
-    </div>
   )
 }
 

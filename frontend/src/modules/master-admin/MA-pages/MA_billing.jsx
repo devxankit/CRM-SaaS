@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Search,
@@ -18,8 +18,9 @@ import {
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Input } from '../../../components/ui/input'
-import MA_dashboard_navbar from '../MA-components/MA_dashboard_navbar'
-import MA_dashboard_sidebar from '../MA-components/MA_dashboard_sidebar'
+import { masterAdminBillingService } from '../MA-services'
+import { useToast } from '../../../contexts/ToastContext'
+import { RefreshCw } from 'lucide-react'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -31,18 +32,65 @@ const fadeUp = {
 }
 
 const MA_billing = () => {
+  const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [payments, setPayments] = useState([])
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    pendingAmount: 0,
+    paidCount: 0,
+    pendingCount: 0
+  })
 
-  // Mock data - Replace with API calls
-  const [payments] = useState([
-    { id: 1, invoice: 'INV-2024-001', company: 'TechCorp Inc.', amount: 2999, status: 'paid', date: '2024-02-01', method: 'Credit Card', plan: 'Professional' },
-    { id: 2, invoice: 'INV-2024-002', company: 'StartupXYZ', amount: 1999, status: 'paid', date: '2024-02-02', method: 'Bank Transfer', plan: 'Starter' },
-    { id: 3, invoice: 'INV-2024-003', company: 'Enterprise Ltd.', amount: 4999, status: 'pending', date: '2024-02-05', method: 'Credit Card', plan: 'Premium' },
-    { id: 4, invoice: 'INV-2024-004', company: 'Digital Solutions', amount: 2999, status: 'paid', date: '2024-02-03', method: 'UPI', plan: 'Professional' },
-    { id: 5, invoice: 'INV-2024-005', company: 'CloudTech', amount: 4999, status: 'failed', date: '2024-02-04', method: 'Credit Card', plan: 'Premium' },
-    { id: 6, invoice: 'INV-2024-006', company: 'SmallBiz Co.', amount: 0, status: 'trial', date: '2024-02-01', method: 'N/A', plan: 'Starter' }
-  ])
+  // Load payments data
+  const loadPayments = async () => {
+    setLoading(true)
+    try {
+      const [paymentsRes, statsRes] = await Promise.all([
+        masterAdminBillingService.getAllPayments({ 
+          search: searchQuery,
+          status: filterStatus === 'all' ? undefined : filterStatus
+        }),
+        masterAdminBillingService.getPaymentStatistics()
+      ])
+
+      if (paymentsRes.success && paymentsRes.data.payments) {
+        setPayments(paymentsRes.data.payments)
+      }
+
+      if (statsRes.success && statsRes.data) {
+        setStats({
+          totalRevenue: statsRes.data.totalRevenue || 0,
+          pendingAmount: statsRes.data.pendingAmount || 0,
+          paidCount: statsRes.data.paidCount || 0,
+          pendingCount: statsRes.data.paidCount || 0 // Use paidCount as placeholder, will be calculated
+        })
+      }
+    } catch (error) {
+      console.error('Error loading payments:', error)
+      toast.error('Failed to load payments', {
+        title: 'Error',
+        duration: 4000
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadPayments()
+  }, [filterStatus])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== undefined) {
+        loadPayments()
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -70,24 +118,11 @@ const MA_billing = () => {
   const filteredPayments = payments.filter(payment => {
     const matchesSearch = payment.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          payment.invoice.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = filterStatus === 'all' || payment.status === filterStatus
-    return matchesSearch && matchesFilter
+    return matchesSearch
   })
 
-  const stats = {
-    totalRevenue: payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0),
-    pendingAmount: payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0),
-    paidCount: payments.filter(p => p.status === 'paid').length,
-    pendingCount: payments.filter(p => p.status === 'pending').length
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-white font-sans">
-      <MA_dashboard_navbar />
-      <MA_dashboard_sidebar />
-
-      <main className="ml-64 pt-16 min-h-screen transition-all duration-300">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <motion.div
             initial="hidden"
@@ -187,10 +222,21 @@ const MA_billing = () => {
                   <CardTitle className="text-xl font-semibold text-slate-900">
                     Payment History ({filteredPayments.length})
                   </CardTitle>
-                  <Button variant="outline" size="sm" className="border-teal-200">
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={loadPayments}
+                      disabled={loading}
+                      className="border-teal-200">
+                      <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                    <Button variant="outline" size="sm" className="border-teal-200">
+                      <Download className="mr-2 h-4 w-4" />
+                      Export
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-6">
@@ -209,7 +255,25 @@ const MA_billing = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-teal-50">
-                      {filteredPayments.map((payment) => (
+                      {loading ? (
+                        <tr>
+                          <td colSpan="7" className="py-12 text-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <RefreshCw className="h-5 w-5 animate-spin text-teal-600" />
+                              <span className="text-slate-600">Loading payments...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : filteredPayments.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="py-12 text-center">
+                            <Receipt className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                            <p className="text-lg font-medium text-slate-700">No payments found</p>
+                            <p className="text-sm text-slate-500 mt-2">Try adjusting your filters or search</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredPayments.map((payment) => (
                         <tr key={payment.id} className="transition-colors duration-200 hover:bg-teal-50/50">
                           <td className="py-4 text-sm font-medium text-slate-900">{payment.invoice}</td>
                           <td className="py-4 text-sm text-slate-600">{payment.company}</td>
@@ -235,7 +299,8 @@ const MA_billing = () => {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -243,8 +308,6 @@ const MA_billing = () => {
             </Card>
           </motion.div>
         </div>
-      </main>
-    </div>
   )
 }
 

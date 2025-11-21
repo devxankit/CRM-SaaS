@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   FileText,
@@ -18,8 +18,9 @@ import {
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Input } from '../../../components/ui/input'
-import MA_dashboard_navbar from '../MA-components/MA_dashboard_navbar'
-import MA_dashboard_sidebar from '../MA-components/MA_dashboard_sidebar'
+import { masterAdminLogService } from '../MA-services'
+import { useToast } from '../../../contexts/ToastContext'
+import { RefreshCw } from 'lucide-react'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -31,20 +32,58 @@ const fadeUp = {
 }
 
 const MA_logs = () => {
+  const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [logs, setLogs] = useState([])
 
-  // Mock data - Replace with API calls
-  const [logs] = useState([
-    { id: 1, type: 'subscription', action: 'New subscription created', user: 'TechCorp Inc.', admin: 'Master Admin', time: '2024-02-01 10:30:00', status: 'success' },
-    { id: 2, type: 'user', action: 'User registered', user: 'John Doe', admin: 'System', time: '2024-02-01 09:15:00', status: 'success' },
-    { id: 3, type: 'payment', action: 'Payment received', user: 'StartupXYZ', admin: 'System', time: '2024-02-01 08:45:00', status: 'success' },
-    { id: 4, type: 'module', action: 'Module configuration updated', user: 'PM Cloud', admin: 'Master Admin', time: '2024-01-31 16:20:00', status: 'info' },
-    { id: 5, type: 'security', action: 'Failed login attempt', user: 'admin@cloudtech.com', admin: 'System', time: '2024-01-31 14:10:00', status: 'warning' },
-    { id: 6, type: 'user', action: 'User deleted', user: 'David Brown', admin: 'Master Admin', time: '2024-01-31 12:00:00', status: 'error' },
-    { id: 7, type: 'subscription', action: 'Subscription cancelled', user: 'SmallBiz Co.', admin: 'Master Admin', time: '2024-01-30 18:30:00', status: 'info' },
-    { id: 8, type: 'payment', action: 'Payment failed', user: 'CloudTech', admin: 'System', time: '2024-01-30 15:45:00', status: 'error' }
-  ])
+  // Load logs data
+  const loadLogs = async () => {
+    setLoading(true)
+    try {
+      const logsRes = await masterAdminLogService.getAllLogs({
+        search: searchQuery,
+        type: filterType === 'all' ? undefined : filterType,
+        page: 1,
+        limit: 50
+      })
+
+      if (logsRes.success && logsRes.data.logs) {
+        const formattedLogs = logsRes.data.logs.map(log => ({
+          id: log._id,
+          type: log.type,
+          action: log.action,
+          user: log.user,
+          admin: log.admin,
+          time: new Date(log.createdAt).toLocaleString(),
+          status: log.status
+        }))
+        setLogs(formattedLogs)
+      }
+    } catch (error) {
+      console.error('Error loading logs:', error)
+      toast.error('Failed to load logs', {
+        title: 'Error',
+        duration: 4000
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadLogs()
+  }, [filterType])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== undefined) {
+        loadLogs()
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const getActivityIcon = (type) => {
     switch (type) {
@@ -82,17 +121,30 @@ const MA_logs = () => {
     const matchesSearch = log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          log.admin.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = filterType === 'all' || log.type === filterType
-    return matchesSearch && matchesFilter
+    return matchesSearch
   })
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-white font-sans">
-      <MA_dashboard_navbar />
-      <MA_dashboard_sidebar />
+  // Handle export logs
+  const handleExportLogs = async () => {
+    try {
+      await masterAdminLogService.exportLogs({
+        type: filterType === 'all' ? undefined : filterType,
+        search: searchQuery
+      }, 'csv')
+      toast.success('Logs exported successfully', {
+        title: 'Export Complete',
+        duration: 3000
+      })
+    } catch (error) {
+      toast.error('Failed to export logs', {
+        title: 'Export Failed',
+        duration: 4000
+      })
+    }
+  }
 
-      <main className="ml-64 pt-16 min-h-screen transition-all duration-300">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+  return (
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <motion.div
             initial="hidden"
@@ -108,10 +160,23 @@ const MA_logs = () => {
                   View all platform activities and system events
                 </p>
               </div>
-              <Button variant="outline" className="border-teal-200">
-                <Download className="mr-2 h-4 w-4" />
-                Export Logs
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={loadLogs}
+                  disabled={loading}
+                  className="border-teal-200 bg-white text-teal-600 hover:bg-teal-50">
+                  <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleExportLogs}
+                  className="border-teal-200 bg-white text-teal-600 hover:bg-teal-50">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Logs
+                </Button>
+              </div>
             </div>
           </motion.div>
 
@@ -167,7 +232,21 @@ const MA_logs = () => {
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
-                  {filteredLogs.map((log, index) => (
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="flex items-center gap-3">
+                        <RefreshCw className="h-6 w-6 animate-spin text-teal-600" />
+                        <span className="text-lg font-medium text-slate-700">Loading logs...</span>
+                      </div>
+                    </div>
+                  ) : filteredLogs.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                      <p className="text-lg font-medium text-slate-700">No logs found</p>
+                      <p className="text-sm text-slate-500 mt-2">Try adjusting your filters or search</p>
+                    </div>
+                  ) : (
+                    filteredLogs.map((log, index) => (
                     <motion.div
                       key={log.id}
                       initial="hidden"
@@ -203,14 +282,13 @@ const MA_logs = () => {
                         </div>
                       </div>
                     </motion.div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
           </motion.div>
         </div>
-      </main>
-    </div>
   )
 }
 

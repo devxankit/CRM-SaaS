@@ -6,6 +6,7 @@ import PMProtectedRoute from './components/ui/PMProtectedRoute'
 import SalesProtectedRoute from './components/ui/SalesProtectedRoute'
 import EmployeeProtectedRoute from './components/ui/EmployeeProtectedRoute'
 import ClientProtectedRoute from './components/ui/ClientProtectedRoute'
+import MasterAdminProtectedRoute from './components/ui/MasterAdminProtectedRoute'
 import { ToastProvider } from './contexts/ToastContext'
 import ScrollToTop from './components/ScrollToTop'
 
@@ -93,6 +94,7 @@ import Client_notification from './modules/dev/DEV-pages/Client-pages/Client_not
 // Master admin pages
 import MA_home from './modules/master-admin/MA-pages/MA_home'
 import MA_blogs from './modules/master-admin/MA-pages/MA_blogs'
+import MA_auth from './modules/master-admin/MA-pages/MA_auth'
 import MA_dashboard from './modules/master-admin/MA-pages/MA_dashboard'
 import MA_subscriptions from './modules/master-admin/MA-pages/MA_subscriptions'
 import MA_users from './modules/master-admin/MA-pages/MA_users'
@@ -100,6 +102,7 @@ import MA_analytics from './modules/master-admin/MA-pages/MA_analytics'
 import MA_billing from './modules/master-admin/MA-pages/MA_billing'
 import MA_companies from './modules/master-admin/MA-pages/MA_companies'
 import MA_logs from './modules/master-admin/MA-pages/MA_logs'
+import MA_layout from './modules/master-admin/MA-components/MA_layout'
 
 //Admin pages start here //
 import Admin_dashboard from './modules/admin/admin-pages/Admin_dashboard'
@@ -122,15 +125,27 @@ function App() {
           <Routes>
           //Login pages start here //
           <Route path="/" element={<Navigate to="/master-admin" replace />} />
+          
+          {/* Master Admin Public Routes */}
           <Route path="/master-admin" element={<MA_home />} />
           <Route path="/blogs" element={<MA_blogs />} />
-          <Route path="/master-admin-dashboard" element={<MA_dashboard />} />
-          <Route path="/master-admin-subscriptions" element={<MA_subscriptions />} />
-          <Route path="/master-admin-users" element={<MA_users />} />
-          <Route path="/master-admin-analytics" element={<MA_analytics />} />
-          <Route path="/master-admin-billing" element={<MA_billing />} />
-          <Route path="/master-admin-companies" element={<MA_companies />} />
-          <Route path="/master-admin-logs" element={<MA_logs />} />
+          <Route path="/master-admin-login" element={<MA_auth />} />
+          
+          {/* Master Admin Protected Routes */}
+          <Route element={
+            <MasterAdminProtectedRoute>
+              <MA_layout />
+            </MasterAdminProtectedRoute>
+          }>
+            <Route path="/master-admin-dashboard" element={<MA_dashboard />} />
+            <Route path="/master-admin-subscriptions" element={<MA_subscriptions />} />
+            <Route path="/master-admin-users" element={<MA_users />} />
+            <Route path="/master-admin-analytics" element={<MA_analytics />} />
+            <Route path="/master-admin-billing" element={<MA_billing />} />
+            <Route path="/master-admin-companies" element={<MA_companies />} />
+            <Route path="/master-admin-logs" element={<MA_logs />} />
+          </Route>
+          
           <Route path="/sales-login" element={<SL_login />} />
           <Route path="/employee-login" element={<Employee_login />} />
           <Route path="/pm-login" element={<PM_login />} />

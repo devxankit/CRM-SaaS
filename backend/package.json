@@ -13,6 +13,7 @@
     "add-tasks-standalone": "node scripts/add_tasks_to_milestones_standalone.js",
     "test-progress": "node scripts/test_milestone_progress.js",
     "seed": "node scripts/seedDatabase.js",
+    "seed-plans": "node scripts/seed_plans.js",
     "test-apis": "node scripts/testAPIs.js",
     "test-all": "npm run seed && npm run test-apis",
     "test": "echo \"Error: no test specified\" && exit 1"

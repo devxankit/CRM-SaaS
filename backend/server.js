@@ -67,6 +67,16 @@ const clientNotificationRoutes = require('./routes/clientNotificationRoutes');
 const clientExploreRoutes = require('./routes/clientExploreRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 
+// Master Admin routes
+const masterAdminRoutes = require('./routes/masterAdminRoutes');
+const masterAdminCompanyRoutes = require('./routes/masterAdminCompanyRoutes');
+const masterAdminSubscriptionRoutes = require('./routes/masterAdminSubscriptionRoutes');
+const masterAdminPlanRoutes = require('./routes/masterAdminPlanRoutes');
+const masterAdminUserRoutes = require('./routes/masterAdminUserRoutes');
+const masterAdminAnalyticsRoutes = require('./routes/masterAdminAnalyticsRoutes');
+const masterAdminBillingRoutes = require('./routes/masterAdminBillingRoutes');
+const masterAdminLogRoutes = require('./routes/masterAdminLogRoutes');
+
 // Import socket service
 const socketService = require('./services/socketService');
 
@@ -294,6 +304,16 @@ app.use('/api/client/wallet', clientWalletRoutes);
 app.use('/api/client/notifications', clientNotificationRoutes);
 app.use('/api/client/explore', clientExploreRoutes);
 
+// Master Admin routes with /api prefix
+app.use('/api/master-admin', masterAdminRoutes);
+app.use('/api/master-admin/companies', masterAdminCompanyRoutes);
+app.use('/api/master-admin/subscriptions', masterAdminSubscriptionRoutes);
+app.use('/api/master-admin/plans', masterAdminPlanRoutes);
+app.use('/api/master-admin/users', masterAdminUserRoutes);
+app.use('/api/master-admin/analytics', masterAdminAnalyticsRoutes);
+app.use('/api/master-admin/billing', masterAdminBillingRoutes);
+app.use('/api/master-admin/logs', masterAdminLogRoutes);
+
 // Role-specific API routes without /api prefix (for reverse proxy compatibility)
 // Admin routes
 app.use('/admin/projects', adminProjectRoutes);
@@ -318,6 +338,16 @@ app.use('/client/payments', clientPaymentRoutes);
 app.use('/client/wallet', clientWalletRoutes);
 app.use('/client/notifications', clientNotificationRoutes);
 app.use('/client/explore', clientExploreRoutes);
+
+// Master Admin routes without /api prefix (for reverse proxy compatibility)
+app.use('/master-admin', masterAdminRoutes);
+app.use('/master-admin/companies', masterAdminCompanyRoutes);
+app.use('/master-admin/subscriptions', masterAdminSubscriptionRoutes);
+app.use('/master-admin/plans', masterAdminPlanRoutes);
+app.use('/master-admin/users', masterAdminUserRoutes);
+app.use('/master-admin/analytics', masterAdminAnalyticsRoutes);
+app.use('/master-admin/billing', masterAdminBillingRoutes);
+app.use('/master-admin/logs', masterAdminLogRoutes);
 
 // API routes documentation
 app.get('/api', (req, res) => {

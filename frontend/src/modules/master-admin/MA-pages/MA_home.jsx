@@ -31,7 +31,8 @@ import {
   Phone,
   Lock,
   Eye,
-  EyeOff
+  EyeOff,
+  RefreshCw
 } from 'lucide-react'
 
 import { Button } from '../../../components/ui/button'
@@ -49,6 +50,7 @@ import groupImage from '../../../assets/images/group_image.png'
 import { AuroraText } from '../../../components/ui/aurora-text'
 import { Highlighter } from '../../../components/ui/highlighter'
 import { Marquee } from '../../../components/ui/marquee'
+import { masterAdminPlanService } from '../MA-services'
 
 import banner1 from '../../../assets/images/banner1.png'
 import banner3 from '../../../assets/images/banner3.png'
@@ -207,7 +209,8 @@ const governanceStack = [
   }
 ]
 
-const bundles = [
+// Default bundles (fallback if API fails)
+const defaultBundles = [
   {
     name: 'Starter',
     statement: 'Perfect for small teams getting started with CRM.',
@@ -403,9 +406,159 @@ const MA_home_content = () => {
   })
   const [showPassword, setShowPassword] = useState(false)
   const [formErrors, setFormErrors] = useState({})
+  const [bundles, setBundles] = useState([])
+  const [loadingPlans, setLoadingPlans] = useState(true)
   const highlightRef = useRef(null)
   const powerfulHighlightRef = useRef(null)
   const simpleHighlightRef = useRef(null)
+
+  // Load plans from API
+  useEffect(() => {
+    const loadPlans = async () => {
+      try {
+        setLoadingPlans(true)
+        const response = await masterAdminPlanService.getAllPlans({ active: 'true' })
+        if (response.success && response.data.plans) {
+          // Transform plans to bundles format
+          const transformedBundles = response.data.plans
+            .filter(plan => plan.isActive)
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+            .map(plan => ({
+              name: plan.name,
+              statement: plan.statement,
+              includes: plan.includes || [],
+              price: `₹${plan.price.toLocaleString()}`,
+              period: plan.period,
+              extras: plan.extras || '',
+              action: '/admin-login',
+              popular: plan.popular || false
+            }))
+          setBundles(transformedBundles)
+        } else {
+          // Fallback to default bundles if API fails
+          setBundles([
+            {
+              name: 'Starter',
+              statement: 'Perfect for small teams getting started with CRM.',
+              includes: [
+                'Sales CRM module',
+                'Project Management module',
+                'Client Portal access',
+                'Basic analytics & reporting',
+                'Email support',
+                'Up to 5 team members'
+              ],
+              price: '₹1,999',
+              period: '/month',
+              extras: 'Best for startups',
+              action: '/admin-login',
+              popular: false
+            },
+            {
+              name: 'Professional',
+              statement: 'For growing teams managing operations and finance.',
+              includes: [
+                'All Starter features',
+                'Employee Performance Hub',
+                'Finance & Compliance Suite',
+                'Advanced analytics & insights',
+                'Priority email support',
+                'Up to 20 team members',
+                'Custom workflows'
+              ],
+              price: '₹2,999',
+              period: '/month',
+              extras: 'Most popular',
+              action: '/admin-login',
+              popular: true
+            },
+            {
+              name: 'Premium',
+              statement: 'For established businesses needing advanced features.',
+              includes: [
+                'All Professional features',
+                'Unlimited team members',
+                'Dedicated account manager',
+                'Custom integrations',
+                '24/7 priority support',
+                'Advanced security features',
+                'Migration support',
+                'Custom automation setup'
+              ],
+              price: '₹4,999',
+              period: '/month',
+              extras: 'Best for enterprises',
+              action: '/admin-login',
+              popular: false
+            }
+          ])
+        }
+      } catch (error) {
+        console.error('Error loading plans:', error)
+        // Fallback to default bundles on error
+        setBundles([
+          {
+            name: 'Starter',
+            statement: 'Perfect for small teams getting started with CRM.',
+            includes: [
+              'Sales CRM module',
+              'Project Management module',
+              'Client Portal access',
+              'Basic analytics & reporting',
+              'Email support',
+              'Up to 5 team members'
+            ],
+            price: '₹1,999',
+            period: '/month',
+            extras: 'Best for startups',
+            action: '/admin-login',
+            popular: false
+          },
+          {
+            name: 'Professional',
+            statement: 'For growing teams managing operations and finance.',
+            includes: [
+              'All Starter features',
+              'Employee Performance Hub',
+              'Finance & Compliance Suite',
+              'Advanced analytics & insights',
+              'Priority email support',
+              'Up to 20 team members',
+              'Custom workflows'
+            ],
+            price: '₹2,999',
+            period: '/month',
+            extras: 'Most popular',
+            action: '/admin-login',
+            popular: true
+          },
+          {
+            name: 'Premium',
+            statement: 'For established businesses needing advanced features.',
+            includes: [
+              'All Professional features',
+              'Unlimited team members',
+              'Dedicated account manager',
+              'Custom integrations',
+              '24/7 priority support',
+              'Advanced security features',
+              'Migration support',
+              'Custom automation setup'
+            ],
+            price: '₹4,999',
+            period: '/month',
+            extras: 'Best for enterprises',
+            action: '/admin-login',
+            popular: false
+          }
+        ])
+      } finally {
+        setLoadingPlans(false)
+      }
+    }
+
+    loadPlans()
+  }, [])
 
   // Ensure highlighter is ready after element is rendered and motion animation completes
   useEffect(() => {
@@ -1191,7 +1344,20 @@ const MA_home_content = () => {
             </p>
           </motion.div>
           <div className="grid gap-6 md:grid-cols-3">
-            {bundles.map((bundle, index) => (
+            {loadingPlans ? (
+              <div className="col-span-3 py-12 text-center">
+                <div className="flex items-center justify-center gap-3">
+                  <RefreshCw className="h-6 w-6 animate-spin text-teal-600" />
+                  <span className="text-lg font-medium text-slate-700">Loading plans...</span>
+                </div>
+              </div>
+            ) : bundles.length === 0 ? (
+              <div className="col-span-3 py-12 text-center">
+                <p className="text-lg font-medium text-slate-700">No plans available</p>
+                <p className="text-sm text-slate-500 mt-2">Please contact support</p>
+              </div>
+            ) : (
+              bundles.map((bundle, index) => (
               <motion.div
                 key={bundle.name}
                 initial="hidden"
@@ -1275,7 +1441,8 @@ const MA_home_content = () => {
                   </div>
                 </div>
               </motion.div>
-            ))}
+              ))
+            )}
           </div>
           <motion.p
             initial="hidden"

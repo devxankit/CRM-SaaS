@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -15,31 +15,69 @@ import {
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
 import { AuroraText } from '../../../components/ui/aurora-text'
+import { masterAdminAuthService } from '../MA-services'
+import { useToast } from '../../../contexts/ToastContext'
 
 const MA_dashboard_navbar = () => {
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-
-  // Mock user data - Replace with actual auth data
-  const userData = {
+  const [userData, setUserData] = useState({
     name: 'Master Admin',
     email: 'admin@crmplatform.com',
     role: 'MASTER_ADMIN'
-  }
+  })
+
+  // Load user data
+  useEffect(() => {
+    const storedData = masterAdminAuthService.getStoredMasterAdminData()
+    if (storedData) {
+      setUserData({
+        name: storedData.name || 'Master Admin',
+        email: storedData.email || 'admin@crmplatform.com',
+        role: 'MASTER_ADMIN'
+      })
+    } else {
+      // Try to get profile from API
+      masterAdminAuthService.getProfile()
+        .then(response => {
+          if (response.success && response.data.masterAdmin) {
+            const admin = response.data.masterAdmin
+            setUserData({
+              name: admin.name || 'Master Admin',
+              email: admin.email || 'admin@crmplatform.com',
+              role: 'MASTER_ADMIN'
+            })
+          }
+        })
+        .catch(error => {
+          console.error('Error loading profile:', error)
+        })
+    }
+  }, [])
 
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true)
-      // Add logout logic here
-      setTimeout(() => {
-        navigate('/master-admin')
-        setIsLoggingOut(false)
-      }, 1000)
+      await masterAdminAuthService.logout()
+      // logout() already clears storage, but ensure it's cleared
+      masterAdminAuthService.clearStoredData()
+      
+      toast.success('Logged out successfully', {
+        title: 'Logout',
+        duration: 2000
+      })
+      
+      navigate('/master-admin')
     } catch (error) {
       console.error('Logout error:', error)
+      // Even if logout fails, clear local data
+      masterAdminAuthService.clearStoredData()
+      navigate('/master-admin')
+    } finally {
       setIsLoggingOut(false)
     }
   }

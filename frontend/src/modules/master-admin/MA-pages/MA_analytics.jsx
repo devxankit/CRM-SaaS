@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   BarChart3,
@@ -13,8 +13,9 @@ import {
 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
-import MA_dashboard_navbar from '../MA-components/MA_dashboard_navbar'
-import MA_dashboard_sidebar from '../MA-components/MA_dashboard_sidebar'
+import { masterAdminAnalyticsService } from '../MA-services'
+import { useToast } from '../../../contexts/ToastContext'
+import { RefreshCw } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -42,30 +43,49 @@ const fadeUp = {
 }
 
 const MA_analytics = () => {
+  const { toast } = useToast()
   const [timeRange, setTimeRange] = useState('6m')
+  const [loading, setLoading] = useState(true)
+  const [revenueData, setRevenueData] = useState([])
+  const [moduleData, setModuleData] = useState([])
+  const [planDistribution, setPlanDistribution] = useState([])
 
-  const revenueData = [
-    { month: 'Aug', revenue: 850000, subscriptions: 280 },
-    { month: 'Sep', revenue: 920000, subscriptions: 295 },
-    { month: 'Oct', revenue: 980000, subscriptions: 310 },
-    { month: 'Nov', revenue: 1050000, subscriptions: 325 },
-    { month: 'Dec', revenue: 1120000, subscriptions: 335 },
-    { month: 'Jan', revenue: 1250000, subscriptions: 342 }
-  ]
+  // Load analytics data
+  const loadAnalyticsData = async () => {
+    setLoading(true)
+    try {
+      const months = timeRange === '6m' ? 6 : timeRange === '12m' ? 12 : 3
+      const [revenueRes, modulesRes, planRes] = await Promise.all([
+        masterAdminAnalyticsService.getRevenueTrend(months),
+        masterAdminAnalyticsService.getModuleStatistics(),
+        masterAdminAnalyticsService.getPlanDistribution()
+      ])
 
-  const moduleData = [
-    { name: 'Sales CRM', revenue: 342000, users: 456 },
-    { name: 'PM Cloud', revenue: 291750, users: 389 },
-    { name: 'Client Portal', revenue: 249750, users: 40 },
-    { name: 'People Ops', revenue: 175500, users: 234 },
-    { name: 'Admin HQ', revenue: 192000, users: 128 }
-  ]
+      if (revenueRes.success && revenueRes.data.revenueTrend) {
+        setRevenueData(revenueRes.data.revenueTrend)
+      }
 
-  const planDistribution = [
-    { name: 'Premium', value: 45, color: '#14b8a6' },
-    { name: 'Professional', value: 35, color: '#3b82f6' },
-    { name: 'Starter', value: 20, color: '#10b981' }
-  ]
+      if (modulesRes.success && modulesRes.data.modules) {
+        setModuleData(modulesRes.data.modules)
+      }
+
+      if (planRes.success && planRes.data.planDistribution) {
+        setPlanDistribution(planRes.data.planDistribution)
+      }
+    } catch (error) {
+      console.error('Error loading analytics:', error)
+      toast.error('Failed to load analytics data', {
+        title: 'Error',
+        duration: 4000
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadAnalyticsData()
+  }, [timeRange])
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -76,12 +96,7 @@ const MA_analytics = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-white font-sans">
-      <MA_dashboard_navbar />
-      <MA_dashboard_sidebar />
-
-      <main className="ml-64 pt-16 min-h-screen transition-all duration-300">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <motion.div
             initial="hidden"
@@ -275,8 +290,6 @@ const MA_analytics = () => {
             </Card>
           </motion.div>
         </div>
-      </main>
-    </div>
   )
 }
 

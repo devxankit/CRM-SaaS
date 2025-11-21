@@ -56,9 +56,9 @@ import {
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Input } from '../../../components/ui/input'
-import MA_dashboard_navbar from '../MA-components/MA_dashboard_navbar'
-import MA_dashboard_sidebar from '../MA-components/MA_dashboard_sidebar'
 import { AuroraText } from '../../../components/ui/aurora-text'
+import { masterAdminAnalyticsService, masterAdminSubscriptionService, masterAdminCompanyService, masterAdminLogService } from '../MA-services'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   LineChart as RechartsLineChart,
   Line,
@@ -87,113 +87,161 @@ const fadeUp = {
 
 const MA_dashboard = () => {
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [timeRange, setTimeRange] = useState('7d')
 
-  // Mock dashboard data - Replace with actual API calls
+  // Dashboard data state
   const [dashboardData, setDashboardData] = useState({
     overview: {
-      totalUsers: 1247,
-      activeSubscriptions: 342,
-      totalRevenue: 1250000,
-      monthlyGrowth: 12.5,
+      totalUsers: 0,
+      activeSubscriptions: 0,
+      totalRevenue: 0,
+      monthlyGrowth: 0,
       activeModules: 5,
-      systemHealth: 98.5,
-      totalCompanies: 89,
-      monthlyRevenue: 342000,
-      churnRate: 2.3
+      systemHealth: 0,
+      totalCompanies: 0,
+      monthlyRevenue: 0,
+      churnRate: 0
     },
-    modules: [
-      {
-        id: 1,
-        name: 'Sales CRM',
-        status: 'active',
-        users: 456,
-        revenue: 342000,
-        growth: 8.2,
-        icon: Target,
-        color: 'from-blue-500 to-blue-600'
-      },
-      {
-        id: 2,
-        name: 'PM Cloud',
-        status: 'active',
-        users: 389,
-        revenue: 291750,
-        growth: 15.3,
-        icon: Workflow,
-        color: 'from-purple-500 to-purple-600'
-      },
-      {
-        id: 3,
-        name: 'People Ops',
-        status: 'active',
-        users: 234,
-        revenue: 175500,
-        growth: 5.7,
-        icon: Users,
-        color: 'from-emerald-500 to-emerald-600'
-      },
-      {
-        id: 4,
-        name: 'Admin HQ',
-        status: 'active',
-        users: 128,
-        revenue: 192000,
-        growth: 22.1,
-        icon: DollarSign,
-        color: 'from-slate-500 to-slate-600'
-      },
-      {
-        id: 5,
-        name: 'Client Portal',
-        status: 'active',
-        users: 40,
-        revenue: 249750,
-        growth: 18.9,
-        icon: Cloud,
-        color: 'from-cyan-500 to-cyan-600'
-      }
-    ],
-    revenueTrend: [
-      { month: 'Jan', revenue: 850000, subscriptions: 280 },
-      { month: 'Feb', revenue: 920000, subscriptions: 295 },
-      { month: 'Mar', revenue: 980000, subscriptions: 310 },
-      { month: 'Apr', revenue: 1050000, subscriptions: 325 },
-      { month: 'May', revenue: 1120000, subscriptions: 335 },
-      { month: 'Jun', revenue: 1250000, subscriptions: 342 }
-    ],
-    moduleDistribution: [
-      { name: 'Sales CRM', value: 35, color: '#3b82f6' },
-      { name: 'PM Cloud', value: 25, color: '#a855f7' },
-      { name: 'Client Portal', value: 20, color: '#06b6d4' },
-      { name: 'People Ops', value: 12, color: '#10b981' },
-      { name: 'Admin HQ', value: 8, color: '#64748b' }
-    ],
-    recentActivity: [
-      { id: 1, type: 'subscription', action: 'New subscription', user: 'TechCorp Inc.', time: '2 mins ago', status: 'success' },
-      { id: 2, type: 'user', action: 'User registered', user: 'John Doe', time: '15 mins ago', status: 'success' },
-      { id: 3, type: 'payment', action: 'Payment received', user: 'StartupXYZ', time: '1 hour ago', status: 'success' },
-      { id: 4, type: 'module', action: 'Module updated', user: 'PM Cloud', time: '2 hours ago', status: 'info' },
-      { id: 5, type: 'alert', action: 'System alert', user: 'High CPU usage', time: '3 hours ago', status: 'warning' }
-    ],
-    subscriptions: [
-      { id: 1, company: 'TechCorp Inc.', plan: 'Professional', status: 'active', users: 20, amount: 2999, nextBilling: '2024-02-15' },
-      { id: 2, company: 'StartupXYZ', plan: 'Starter', status: 'active', users: 5, amount: 1999, nextBilling: '2024-02-10' },
-      { id: 3, company: 'Enterprise Ltd.', plan: 'Premium', status: 'active', users: 50, amount: 4999, nextBilling: '2024-02-20' }
-    ],
-    topCompanies: [
-      { id: 1, name: 'TechCorp Inc.', revenue: 35988, growth: 12.5, users: 20 },
-      { id: 2, name: 'Enterprise Ltd.', revenue: 249950, growth: 8.3, users: 50 },
-      { id: 3, name: 'StartupXYZ', revenue: 9995, growth: 15.2, users: 5 },
-      { id: 4, name: 'Digital Solutions', revenue: 19992, growth: -2.1, users: 8 }
-    ]
+    modules: [],
+    revenueTrend: [],
+    moduleDistribution: [],
+    recentActivity: [],
+    subscriptions: [],
+    topCompanies: []
   })
 
+  // Load dashboard data
+  const loadDashboardData = async () => {
+    setLoading(true)
+    try {
+      // Load all dashboard data in parallel
+      const [overviewRes, modulesRes, revenueTrendRes, planDistRes, subscriptionsRes, logsRes] = await Promise.all([
+        masterAdminAnalyticsService.getDashboardOverview(),
+        masterAdminAnalyticsService.getModuleStatistics(),
+        masterAdminAnalyticsService.getRevenueTrend({ months: 6 }),
+        masterAdminAnalyticsService.getPlanDistribution(),
+        masterAdminSubscriptionService.getAllSubscriptions({ status: 'active', limit: 5 }),
+        masterAdminLogService.getAllLogs({ limit: 5 })
+      ])
+
+      // Set overview data
+      if (overviewRes.success && overviewRes.data.overview) {
+        setDashboardData(prev => ({
+          ...prev,
+          overview: overviewRes.data.overview
+        }))
+      }
+
+      // Set modules data
+      if (modulesRes.success && modulesRes.data.modules) {
+        const modulesWithIcons = modulesRes.data.modules.map((module, index) => ({
+          ...module,
+          id: index + 1,
+          icon: [Target, Workflow, Users, DollarSign, Cloud][index] || Target,
+          color: [
+            'from-blue-500 to-blue-600',
+            'from-purple-500 to-purple-600',
+            'from-emerald-500 to-emerald-600',
+            'from-slate-500 to-slate-600',
+            'from-cyan-500 to-cyan-600'
+          ][index] || 'from-blue-500 to-blue-600'
+        }))
+        setDashboardData(prev => ({
+          ...prev,
+          modules: modulesWithIcons
+        }))
+      }
+
+      // Set revenue trend
+      if (revenueTrendRes.success && revenueTrendRes.data.revenueTrend) {
+        setDashboardData(prev => ({
+          ...prev,
+          revenueTrend: revenueTrendRes.data.revenueTrend
+        }))
+      }
+
+      // Set module distribution from plan distribution
+      if (planDistRes.success && planDistRes.data.planDistribution) {
+        const distribution = planDistRes.data.planDistribution.map((plan, index) => ({
+          name: plan.name,
+          value: plan.value,
+          color: plan.color
+        }))
+        setDashboardData(prev => ({
+          ...prev,
+          moduleDistribution: distribution
+        }))
+      }
+
+      // Set subscriptions
+      if (subscriptionsRes.success && subscriptionsRes.data.subscriptions) {
+        const formattedSubs = subscriptionsRes.data.subscriptions.map(sub => ({
+          id: sub._id,
+          company: sub.company?.name || 'Unknown',
+          plan: sub.plan,
+          status: sub.status,
+          users: sub.users,
+          amount: sub.amount,
+          nextBilling: new Date(sub.nextBillingDate).toLocaleDateString()
+        }))
+        setDashboardData(prev => ({
+          ...prev,
+          subscriptions: formattedSubs
+        }))
+      }
+
+      // Set recent activity from logs
+      if (logsRes.success && logsRes.data.logs) {
+        const formattedLogs = logsRes.data.logs.map(log => ({
+          id: log._id,
+          type: log.type,
+          action: log.action,
+          user: log.user,
+          time: new Date(log.createdAt).toLocaleString(),
+          status: log.status
+        }))
+        setDashboardData(prev => ({
+          ...prev,
+          recentActivity: formattedLogs
+        }))
+      }
+
+      // Load top companies
+      try {
+        const companiesRes = await masterAdminCompanyService.getAllCompanies({ limit: 4, status: 'active' })
+        if (companiesRes.success && companiesRes.data.companies) {
+          const topCompanies = companiesRes.data.companies.map((company, index) => ({
+            id: company._id,
+            name: company.name,
+            revenue: company.totalRevenue || 0,
+            growth: 0, // Calculate if needed
+            users: company.totalUsers || 0
+          }))
+          setDashboardData(prev => ({
+            ...prev,
+            topCompanies: topCompanies
+          }))
+        }
+      } catch (error) {
+        console.error('Error loading companies:', error)
+      }
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error)
+      toast.error('Failed to load dashboard data', {
+        title: 'Error',
+        duration: 4000
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    // Load dashboard data from API
-    // loadDashboardData()
+    loadDashboardData()
   }, [])
 
   const formatCurrency = (amount) => {
@@ -237,13 +285,17 @@ const MA_dashboard = () => {
   const COLORS = ['#14b8a6', '#3b82f6', '#a855f7', '#10b981', '#64748b']
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-white font-sans">
-      <MA_dashboard_navbar />
-      <MA_dashboard_sidebar />
-
-      {/* Main Content */}
-      <main className="ml-64 pt-16 min-h-screen transition-all duration-300">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          {loading && (
+            <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
+              <div className="bg-white rounded-lg p-6 shadow-xl">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="h-6 w-6 animate-spin text-teal-600" />
+                  <span className="text-lg font-medium text-slate-700">Loading dashboard...</span>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Header Section */}
           <motion.div
             initial="hidden"
@@ -262,15 +314,17 @@ const MA_dashboard = () => {
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   variant="outline"
+                  onClick={loadDashboardData}
+                  disabled={loading}
+                  className="border-teal-200 bg-white text-teal-600 hover:bg-teal-50">
+                  <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="outline"
                   className="border-teal-200 bg-white text-teal-600 hover:bg-teal-50">
                   <Download className="mr-2 h-4 w-4" />
                   Export Report
-                </Button>
-                <Button
-                  onClick={() => navigate('/master-admin-subscriptions')}
-                  className="bg-teal-500 text-white hover:bg-teal-600">
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Subscription
                 </Button>
               </div>
             </div>
@@ -679,8 +733,6 @@ const MA_dashboard = () => {
             </Card>
           </motion.div>
         </div>
-      </main>
-    </div>
   )
 }
 

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const MasterAdmin = require('../models/MasterAdmin');
 const Admin = require('../models/Admin');
 const PM = require('../models/PM');
 const Sales = require('../models/Sales');
@@ -36,7 +37,17 @@ const protect = async (req, res, next) => {
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // Try to find admin first
+      // Try to find master admin first (highest priority)
+      let masterAdmin = await MasterAdmin.findById(decoded.id);
+      if (masterAdmin && masterAdmin.isActive) {
+        req.masterAdmin = masterAdmin;
+        req.user = masterAdmin;
+        req.userType = 'master-admin';
+        req.user.role = 'master-admin';
+        return next();
+      }
+
+      // Try to find admin if not master admin
       let admin = await Admin.findById(decoded.id);
       if (admin && admin.isActive) {
         req.admin = admin;
@@ -212,6 +223,26 @@ const isClient = (req, res, next) => {
   next();
 };
 
+// @desc    Check if user is Master Admin
+// @access  Private
+const isMasterAdmin = (req, res, next) => {
+  if (!req.masterAdmin) {
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized to access this route'
+    });
+  }
+
+  if (req.masterAdmin.role !== 'master-admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Master Admin role required to access this route'
+    });
+  }
+
+  next();
+};
+
 // @desc    Check if user can access project
 // @access  Private
 const canAccessProject = async (req, res, next) => {
@@ -353,14 +384,22 @@ const optionalAuth = async (req, res, next) => {
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // Get admin from token
-        const admin = await Admin.findById(decoded.id);
-        
-        if (admin && admin.isActive) {
-          req.admin = admin;
-          req.user = admin;
-          req.userType = 'admin';
-          req.user.role = 'admin';
+        // Try master admin first
+        const masterAdmin = await MasterAdmin.findById(decoded.id);
+        if (masterAdmin && masterAdmin.isActive) {
+          req.masterAdmin = masterAdmin;
+          req.user = masterAdmin;
+          req.userType = 'master-admin';
+          req.user.role = 'master-admin';
+        } else {
+          // Try admin
+          const admin = await Admin.findById(decoded.id);
+          if (admin && admin.isActive) {
+            req.admin = admin;
+            req.user = admin;
+            req.userType = 'admin';
+            req.user.role = 'admin';
+          }
         }
       } catch (error) {
         // Token is invalid, but we don't fail the request
@@ -381,6 +420,7 @@ module.exports = {
   authorize,
   canAccessHR,
   isAdmin,
+  isMasterAdmin,
   isPM,
   isEmployee,
   isClient,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -23,8 +23,9 @@ import {
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Input } from '../../../components/ui/input'
-import MA_dashboard_navbar from '../MA-components/MA_dashboard_navbar'
-import MA_dashboard_sidebar from '../MA-components/MA_dashboard_sidebar'
+import { masterAdminUserService } from '../MA-services'
+import { useToast } from '../../../contexts/ToastContext'
+import { RefreshCw } from 'lucide-react'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -37,18 +38,78 @@ const fadeUp = {
 
 const MA_users = () => {
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterRole, setFilterRole] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState([])
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    admins: 0
+  })
 
-  // Mock data - Replace with API calls
-  const [users] = useState([
-    { id: 1, name: 'John Doe', email: 'john@techcorp.com', role: 'Admin', company: 'TechCorp Inc.', status: 'active', lastActive: '2024-02-01', phone: '+91 9876543210' },
-    { id: 2, name: 'Jane Smith', email: 'jane@startupxyz.com', role: 'Sales', company: 'StartupXYZ', status: 'active', lastActive: '2024-02-02', phone: '+91 9876543211' },
-    { id: 3, name: 'Mike Johnson', email: 'mike@enterprise.com', role: 'PM', company: 'Enterprise Ltd.', status: 'active', lastActive: '2024-01-30', phone: '+91 9876543212' },
-    { id: 4, name: 'Sarah Williams', email: 'sarah@digitalsolutions.com', role: 'Employee', company: 'Digital Solutions', status: 'active', lastActive: '2024-02-01', phone: '+91 9876543213' },
-    { id: 5, name: 'David Brown', email: 'david@cloudtech.com', role: 'Client', company: 'CloudTech', status: 'inactive', lastActive: '2024-01-15', phone: '+91 9876543214' },
-    { id: 6, name: 'Emily Davis', email: 'emily@smallbiz.com', role: 'Admin', company: 'SmallBiz Co.', status: 'active', lastActive: '2024-02-02', phone: '+91 9876543215' }
-  ])
+  // Load users data
+  const loadUsers = async () => {
+    setLoading(true)
+    try {
+      const [usersRes, statsRes] = await Promise.all([
+        masterAdminUserService.getAllUsers({ 
+          search: searchQuery,
+          role: filterRole === 'all' ? undefined : filterRole,
+          page: 1,
+          limit: 100
+        }),
+        masterAdminUserService.getUserStatistics()
+      ])
+
+      if (usersRes.success && usersRes.data.users) {
+        const formattedUsers = usersRes.data.users.map(user => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          company: 'N/A', // Will be linked in future
+          status: user.status,
+          lastActive: new Date(user.lastActive).toLocaleDateString(),
+          phone: user.phone || 'N/A',
+          userType: user.userType
+        }))
+        setUsers(formattedUsers)
+      }
+
+      if (statsRes.success && statsRes.data) {
+        setStats({
+          total: statsRes.data.total || 0,
+          active: statsRes.data.active || 0,
+          inactive: statsRes.data.inactive || 0,
+          admins: (statsRes.data.byRole?.admin || 0) + (statsRes.data.byRole?.hr || 0)
+        })
+      }
+    } catch (error) {
+      console.error('Error loading users:', error)
+      toast.error('Failed to load users', {
+        title: 'Error',
+        duration: 4000
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [filterRole])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== undefined) {
+        loadUsers()
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const getStatusColor = (status) => {
     return status === 'active' 
@@ -77,24 +138,11 @@ const MA_users = () => {
     const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          user.company.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = filterRole === 'all' || user.role === filterRole
-    return matchesSearch && matchesFilter
+    return matchesSearch
   })
 
-  const stats = {
-    total: users.length,
-    active: users.filter(u => u.status === 'active').length,
-    inactive: users.filter(u => u.status === 'inactive').length,
-    admins: users.filter(u => u.role === 'Admin').length
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-white font-sans">
-      <MA_dashboard_navbar />
-      <MA_dashboard_sidebar />
-
-      <main className="ml-64 pt-16 min-h-screen transition-all duration-300">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <motion.div
             initial="hidden"
@@ -110,12 +158,22 @@ const MA_users = () => {
                   Manage all platform users and their permissions
                 </p>
               </div>
-              <Button
-                onClick={() => navigate('/master-admin-users/new')}
-                className="bg-teal-500 text-white hover:bg-teal-600">
-                <Plus className="mr-2 h-4 w-4" />
-                Add User
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={loadUsers}
+                  disabled={loading}
+                  className="border-teal-200 bg-white text-teal-600 hover:bg-teal-50">
+                  <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  onClick={() => navigate('/master-admin-users/new')}
+                  className="bg-teal-500 text-white hover:bg-teal-600">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add User
+                </Button>
+              </div>
             </div>
           </motion.div>
 
@@ -223,7 +281,25 @@ const MA_users = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-teal-50">
-                      {filteredUsers.map((user) => (
+                      {loading ? (
+                        <tr>
+                          <td colSpan="7" className="py-12 text-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <RefreshCw className="h-5 w-5 animate-spin text-teal-600" />
+                              <span className="text-slate-600">Loading users...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : filteredUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="py-12 text-center">
+                            <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                            <p className="text-lg font-medium text-slate-700">No users found</p>
+                            <p className="text-sm text-slate-500 mt-2">Try adjusting your filters or search</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredUsers.map((user) => (
                         <tr key={user.id} className="transition-colors duration-200 hover:bg-teal-50/50">
                           <td className="py-4">
                             <div>
@@ -261,7 +337,8 @@ const MA_users = () => {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -269,8 +346,6 @@ const MA_users = () => {
             </Card>
           </motion.div>
         </div>
-      </main>
-    </div>
   )
 }
 
